@@ -1,0 +1,74 @@
+version: '3.9'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: ./deploy/Dockerfile
+    image: knowledge_complex_backend:${KNOWLEDGE_COMPLEX_BACKEND_VERSION:-latest}
+    restart: always
+    env_file:
+    - .env
+    labels:
+      # Enables traefik for this container.
+    - traefik.enable=true
+    - traefik.http.routers.knowledge_complex_backend.rule=Host(`${KNOWLEDGE_COMPLEX_BACKEND_TRAEFIK_HOST:-knowledge_complex_backend.localhost}`)
+    - traefik.http.routers.knowledge_complex_backend.entrypoints=http
+    - traefik.http.routers.knowledge_complex_backend.service=knowledge_complex_backend
+    - traefik.http.services.knowledge_complex_backend.loadbalancer.server.port=${KNOWLEDGE_COMPLEX_BACKEND_PORT:-8000}
+    networks:
+    - default
+    - traefik-shared
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      KNOWLEDGE_COMPLEX_BACKEND_HOST: 0.0.0.0
+      KNOWLEDGE_COMPLEX_BACKEND_DB_HOST: knowledge_complex_backend-db
+      KNOWLEDGE_COMPLEX_BACKEND_DB_PORT: 3306
+      KNOWLEDGE_COMPLEX_BACKEND_DB_USER: knowledge_complex_backend
+      KNOWLEDGE_COMPLEX_BACKEND_DB_PASS: knowledge_complex_backend
+      KNOWLEDGE_COMPLEX_BACKEND_DB_BASE: knowledge_complex_backend
+      KNOWLEDGE_COMPLEX_BACKEND_REDIS_HOST: knowledge_complex_backend-redis
+
+  db:
+    image: bitnami/mysql:8.0.30
+    hostname: knowledge_complex_backend-db
+    restart: always
+    environment:
+      MYSQL_ROOT_USER: "knowledge_complex_backend"
+      MYSQL_ROOT_PASSWORD: "knowledge_complex_backend"
+      MYSQL_DATABASE: "knowledge_complex_backend"
+      MYSQL_AUTHENTICATION_PLUGIN: "mysql_native_password"
+    healthcheck:
+      test: mysqladmin ping -h localhost
+      interval: 10s
+      timeout: 5s
+      retries: 40
+    volumes:
+    - knowledge_complex_backend-db-data:/bitnami/mysql/data
+
+  redis:
+    image: bitnami/redis:6.2.5
+    hostname: "knowledge_complex_backend-redis"
+    restart: always
+    environment:
+      ALLOW_EMPTY_PASSWORD: "yes"
+    healthcheck:
+      test: redis-cli ping
+      interval: 1s
+      timeout: 3s
+      retries: 50
+
+
+
+volumes:
+  knowledge_complex_backend-db-data:
+    name: knowledge_complex_backend-db-data
+
+networks:
+  # Network for traefik.
+  traefik-shared:
+    name: traefik-shared

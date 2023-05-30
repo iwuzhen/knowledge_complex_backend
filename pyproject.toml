@@ -1,0 +1,105 @@
+[tool.poetry]
+name = "knowledge_complex_backend"
+version = "0.1.0"
+description = ""
+authors = [
+
+]
+maintainers = [
+
+]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+fastapi = "^0.89.1"
+uvicorn = { version = "^0.20.0", extras = ["standard"] }
+pydantic = {version = "^1.10.4", extras = ["dotenv"]}
+yarl = "^1.8.2"
+ujson = "^5.7.0"
+redis = {version = "^4.4.2", extras = ["hiredis"]}
+httptools = "^0.5.0"
+opentelemetry-api = "^1.15.0"
+opentelemetry-sdk = "^1.15.0"
+opentelemetry-exporter-otlp = "^1.15.0"
+opentelemetry-instrumentation = "^0.36b0"
+opentelemetry-instrumentation-fastapi = "^0.36b0"
+opentelemetry-instrumentation-redis = "^0.36b0"
+loguru = "^0.6.0"
+
+[tool.poetry.dev-dependencies]
+pytest = "^7.2.1"
+flake8 = "~4.0.1"
+mypy = "^1.1.1"
+isort = "^5.11.4"
+pre-commit = "^3.0.1"
+wemake-python-styleguide = "^0.17.0"
+black = "^22.12.0"
+autoflake = "^1.6.1"
+pytest-cov = "^4.0.0"
+anyio = "^3.6.2"
+pytest-env = "^0.8.1"
+fakeredis = "^2.5.0"
+httpx = "^0.23.3"
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+src_paths = ["knowledge_complex_backend",]
+
+[tool.mypy]
+strict = true
+ignore_missing_imports = true
+allow_subclassing_any = true
+allow_untyped_calls = true
+pretty = true
+show_error_codes = true
+implicit_reexport = true
+allow_untyped_decorators = true
+warn_unused_ignores = false
+warn_return_any = false
+namespace_packages = true
+
+# Remove this and add `types-redis`
+# when the issue https://github.com/python/typeshed/issues/8242 is resolved.
+[[tool.mypy.overrides]]
+module = [
+    'redis.asyncio'
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning",
+    "ignore:.*unclosed.*:ResourceWarning",
+]
+env = [
+    "KNOWLEDGE_COMPLEX_BACKEND_ENVIRONMENT=pytest",
+    "KNOWLEDGE_COMPLEX_BACKEND_DB_BASE=knowledge_complex_backend_test",
+]
+
+[fastapi-template.options]
+project_name = "knowledge_complex_backend"
+api_type = "rest"
+enable_redis = "True"
+enable_rmq = "None"
+ci_type = "gitlab_ci"
+enable_migrations = "None"
+enable_taskiq = "None"
+enable_kube = "None"
+kube_name = "knowledge-complex-backend"
+enable_routers = "True"
+enable_kafka = "None"
+enable_loguru = "True"
+traefik_labels = "True"
+add_dummy = "None"
+orm = "none"
+self_hosted_swagger = "None"
+prometheus_enabled = "None"
+sentry_enabled = "None"
+otlp_enabled = "True"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

@@ -1,0 +1,59 @@
+stages:
+- "test"
+
+.test-template:
+  stage: test
+  image: python:3.9.6-slim-buster
+  tags:
+  - kubernetes-runner
+  - docker-runner
+  except:
+  - tags
+  before_script:
+  - pip install poetry==1.2.2
+  - poetry config virtualenvs.create false
+  - poetry install
+
+black:
+  extends:
+  - .test-template
+  script:
+  - black --check .
+
+flake8:
+  extends:
+  - .test-template
+  script:
+  - flake8 --count .
+
+mypy:
+  extends:
+  - .test-template
+  script:
+  - mypy .
+
+pytest:
+  extends:
+  - .test-template
+  services:
+  - name: bitnami/mysql:8.0.30
+    alias: database
+  variables:
+
+    # MySQL variables
+    KNOWLEDGE_COMPLEX_BACKEND_DB_HOST: database
+    MYSQL_PASSWORD: knowledge_complex_backend
+    MYSQL_USER: knowledge_complex_backend
+    MYSQL_DATABASE: knowledge_complex_backend
+    ALLOW_EMPTY_PASSWORD: yes
+  script:
+  - apt update
+  - apt install -y wait-for-it
+  - wait-for-it -t 180 $KNOWLEDGE_COMPLEX_BACKEND_DB_HOST:3306
+  - pytest -vv --junitxml=report.xml --cov="knowledge_complex_backend" .
+  - coverage xml
+  artifacts:
+    when: always
+    reports:
+      cobertura: coverage.xml
+      junit: report.xml
