@@ -1,5 +1,5 @@
 from typing import Awaitable, Callable
-
+import logging
 from fastapi import FastAPI
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
@@ -13,10 +13,11 @@ from opentelemetry.sdk.resources import (
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.trace import set_tracer_provider
-
+import aiomysql
 from knowledge_complex_backend.services.redis.lifetime import init_redis, shutdown_redis
 from knowledge_complex_backend.settings import settings
-
+from elasticsearch import AsyncElasticsearch
+import neo4j
 
 def setup_opentelemetry(app: FastAPI) -> None:  # pragma: no cover
     """
@@ -78,6 +79,30 @@ def stop_opentelemetry(app: FastAPI) -> None:  # pragma: no cover
     FastAPIInstrumentor().uninstrument_app(app)
     RedisInstrumentor().uninstrument()
 
+async def _setup_db(app: FastAPI) -> None:  # pragma: no cover
+    """
+    Creates connection to the database.
+
+    This function creates SQLAlchemy engine instance,
+    session_factory for creating sessions
+    and stores them in the application's state property.
+
+    :param app: fastAPI application.
+    """
+    from urllib.parse import urlsplit
+    result = urlsplit(str(settings.db_url))
+    logging.info('db uri: %s',result)
+    app.state.mysql_pool = await aiomysql.create_pool(host=result.hostname, port=result.port,
+                                      user=result.username, password=result.password,
+                                      db=result.path.strip("/"),)
+
+    # todo set in emv
+    app.state.gpc_mysql_pool = await aiomysql.create_pool(host="192.168.1.229", port=3329,
+                                      user="root", password="root",
+                                      db="gpc",)
+
+    app.state.wikipedia_elastic_client = AsyncElasticsearch("http://192.168.1.227:9200")
+    app.state.neo4j_driver = neo4j.AsyncGraphDatabase.driver("bolt://192.168.1.229:17688", auth=("neo4j", "neo4j-test"))
 
 def register_startup_event(
     app: FastAPI,
@@ -96,7 +121,9 @@ def register_startup_event(
     async def _startup() -> None:  # noqa: WPS430
         setup_opentelemetry(app)
         init_redis(app)
+        await _setup_db(app)
         pass  # noqa: WPS420
+
 
     return _startup
 
@@ -115,6 +142,16 @@ def register_shutdown_event(
     async def _shutdown() -> None:  # noqa: WPS430
         await shutdown_redis(app)
         stop_opentelemetry(app)
+
+        app.state.mysql_pool.close()
+        await app.state.mysql_pool.wait_closed()
+
+        app.state.gpc_mysql_pool.close()
+        await app.state.gpc_mysql_pool.wait_closed()
+
+        await app.state.wikipedia_elastic_client.close()
+        await app.state.neo4j_driver.close()
+
         pass  # noqa: WPS420
 
     return _shutdown

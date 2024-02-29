@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 from redis.asyncio import ConnectionPool
-
+from redis import asyncio as aioRedis
 from knowledge_complex_backend.settings import settings
+from fastapi_cache import FastAPICache
+from fastapi_cache.backends.redis import RedisBackend
 
 
 def init_redis(app: FastAPI) -> None:  # pragma: no cover
@@ -13,6 +15,11 @@ def init_redis(app: FastAPI) -> None:  # pragma: no cover
     app.state.redis_pool = ConnectionPool.from_url(
         str(settings.redis_url),
     )
+    # import logging
+    # logging.info(str(settings.redis_url))
+    # cache
+    redis = aioRedis.from_url(str(settings.redis_url), encoding="utf8", decode_responses=True)
+    FastAPICache.init(RedisBackend(redis), prefix="fastapi-cache")
 
 
 async def shutdown_redis(app: FastAPI) -> None:  # pragma: no cover

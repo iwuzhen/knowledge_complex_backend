@@ -2,6 +2,7 @@ from importlib import metadata
 
 from fastapi import FastAPI
 from fastapi.responses import UJSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 
 from knowledge_complex_backend.logging import configure_logging
 from knowledge_complex_backend.web.api.router import api_router
@@ -36,4 +37,18 @@ def get_app() -> FastAPI:
     # Main router for the API.
     app.include_router(router=api_router, prefix="/api")
 
+    # develop cors fix
+    origins = [
+        "http://localhost",
+        "http://192.168.1.230:3333",
+        "http://192.168.1.230:3334",
+        "https://kg.dev.knogen.com:10444",
+    ]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     return app
