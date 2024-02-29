@@ -1,30 +1,37 @@
-import time
-import numpy
-import collections
 import logging
-from fastapi import Depends
-from knowledge_complex_backend.db.dependencies import get_gpc_db_pool, get_wikipedia_es_client, get_neo4j_driver
-from fastapi_cache.decorator import cache
-import json
 import re
+import time
+
+from fastapi import Depends
+from fastapi_cache.decorator import cache
+
+from knowledge_complex_backend.db.dependencies import (
+    get_gpc_db_pool,
+    get_neo4j_driver,
+    get_wikipedia_es_client,
+)
+
 
 def contains_chinese(s):
-    if re.search('[\u4e00-\u9fa5]', s):
+    if re.search("[\u4e00-\u9fa5]", s):
         return True
     else:
         return False
-    
+
+
 @cache(expire=24 * 60 * 60)
-async def get_neo4j_relationships_weight(node_a,node_b,driver):
+async def get_neo4j_relationships_weight(node_a, node_b, driver):
     async with driver.session(database="neo4j") as session:
         result = await session.run(
-            "MATCH (start:P {Id: $source})<-[r:D]->(end:P {Id: $target})"
-            "RETURN r",
-            source=int(node_a), target=int(node_b))
+            "MATCH (start:P {Id: $source})<-[r:D]->(end:P {Id: $target})" "RETURN r",
+            source=int(node_a),
+            target=int(node_b),
+        )
         record = await result.single()
     if record:
-        return record.get('r',{}).get('weight',1)
+        return record.get("r", {}).get("weight", 1)
     return 1
+
 
 class GpcDAO:
     """
@@ -43,7 +50,13 @@ class GpcDAO:
     NYB:
     结果都返回个列表展示下啊就可以了，按距离从小到大排序的列表。
     """
-    def __init__(self, pool = Depends(get_gpc_db_pool),es = Depends(get_wikipedia_es_client), neo4j_driver = Depends(get_neo4j_driver)):
+
+    def __init__(
+        self,
+        pool=Depends(get_gpc_db_pool),
+        es=Depends(get_wikipedia_es_client),
+        neo4j_driver=Depends(get_neo4j_driver),
+    ):
         self.pool = pool
         self.ES = es
         self.neo4j_driver = neo4j_driver
@@ -58,36 +71,38 @@ class GpcDAO:
             logging.info(r)
             result.append(r)
 
-        response = await self.ES.search(index="en_page", body={
-            '_source': ['title', 'id', 'redirect'],
-            'query': {
-                'match': {
-                    'title': 'Google'
-                }
+        response = await self.ES.search(
+            index="en_page",
+            body={
+                "_source": ["title", "id", "redirect"],
+                "query": {
+                    "match": {
+                        "title": "Google",
+                    },
+                },
+                "highlight": {
+                    "fragment_size": 40,
+                    "fields": {
+                        "title": {},
+                    },
+                },
+                "size": 5,
             },
-            "highlight": {
-                "fragment_size": 40,
-                "fields": {
-                    "title": {}
-                }
-            },
-            "size": 5,
-        })
+        )
         ret = []
         for hit in response["hits"]["hits"]:
             doc = hit["_source"]
-            doc['highlight'] = hit.get('highlight',{})
-            doc['title'] = doc['title']
-            doc['id'] = doc['id']
+            doc["highlight"] = hit.get("highlight", {})
+            doc["title"] = doc["title"]
+            doc["id"] = doc["id"]
             ret.append(doc)
             logging.info(doc)
         result.append(ret)
         return result
 
-
-    @cache(expire=60*60)
+    @cache(expire=60 * 60)
     async def query_suggestion_zh(self, query):
-        '''对于查询中包含中文字符的内容，使用中文查询'''
+        """对于查询中包含中文字符的内容，使用中文查询"""
         logging.info("query: %s", query)
         ret_list = []
 
@@ -104,39 +119,56 @@ class GpcDAO:
         #     if await self.check_last_token_by_page_id(item['id']):
         #         result.append(item)
 
-        response = await self.ES.search(index="wikipedia_title", body={
-            '_source': ['zh_title', 'id', 'redirect'],
-            "query" :{
-                "bool":{
-                    "should":[
-                        {"match":{ "zh_title.prefix": {"query":query, "boost": 20 }}},
-                        {"match":{ "zh_title.standard": {"query":query, "boost": 15} }},
-                        {"match":{ "zh_title.standard": {"query":query, "fuzziness": 2}}},
-                    ]
-                }
+        response = await self.ES.search(
+            index="wikipedia_title",
+            body={
+                "_source": ["zh_title", "id", "redirect"],
+                "query": {
+                    "bool": {
+                        "should": [
+                            {
+                                "match": {
+                                    "zh_title.prefix": {"query": query, "boost": 20}
+                                }
+                            },
+                            {
+                                "match": {
+                                    "zh_title.standard": {"query": query, "boost": 15}
+                                }
+                            },
+                            {
+                                "match": {
+                                    "zh_title.standard": {
+                                        "query": query,
+                                        "fuzziness": 2,
+                                    }
+                                }
+                            },
+                        ],
+                    },
+                },
+                "highlight": {
+                    "fragment_size": 40,
+                    "fields": {
+                        "title": {},
+                    },
+                },
+                "size": 15,
             },
-            "highlight": {
-                "fragment_size": 40,
-                "fields": {
-                    "title": {}
-                }
-            },
-            "size": 15,
-        })
+        )
 
         for hit in response["hits"]["hits"]:
             doc = hit["_source"]
-            doc['id'] = int(hit["_id"])
-            doc['highlight'] = hit.get('highlight',{})
+            doc["id"] = int(hit["_id"])
+            doc["highlight"] = hit.get("highlight", {})
 
-            doc['token'] = doc['zh_title']
-            del doc['zh_title']
+            doc["token"] = doc["zh_title"]
+            del doc["zh_title"]
             ret_list.append(doc)
 
         return ret_list
 
-
-    @cache(expire=60*60)
+    @cache(expire=60 * 60)
     async def query_suggestion(self, query):
         logging.info("query: %s", query)
 
@@ -184,36 +216,62 @@ class GpcDAO:
         #             idSet.add(item[1])
 
         # query from elasticsearch
-        response = await self.ES.search(index="wikipedia_title", body={
-            '_source': ['title', 'id', 'redirect'],
-            "query" :{
-                "bool":{
-                    "should":[
-                        {"match":{ "title.standard": {"query":query, "boost": 100} }},
-                        {"match":{ "redirect.standard": {"query":query, "boost": 50} }},
-                        {"match":{ "title.prefix": {"query":query, "boost": 20 }}},
-                        {"match":{ "redirect.prefix": {"query":query, "boost": 19 }}},
-                        {"match":{ "title.standard": {"query":query, "fuzziness": 2}}},
-                        {"match":{ "redirect.standard": {"query":query, "fuzziness": 2}}}
-                    ]
-                }
+        response = await self.ES.search(
+            index="wikipedia_title",
+            body={
+                "_source": ["title", "id", "redirect"],
+                "query": {
+                    "bool": {
+                        "should": [
+                            {
+                                "match": {
+                                    "title.standard": {"query": query, "boost": 100}
+                                }
+                            },
+                            {
+                                "match": {
+                                    "redirect.standard": {"query": query, "boost": 50}
+                                }
+                            },
+                            {"match": {"title.prefix": {"query": query, "boost": 20}}},
+                            {
+                                "match": {
+                                    "redirect.prefix": {"query": query, "boost": 19}
+                                }
+                            },
+                            {
+                                "match": {
+                                    "title.standard": {"query": query, "fuzziness": 2}
+                                }
+                            },
+                            {
+                                "match": {
+                                    "redirect.standard": {
+                                        "query": query,
+                                        "fuzziness": 2,
+                                    }
+                                }
+                            },
+                        ],
+                    },
+                },
+                "highlight": {
+                    "fragment_size": 40,
+                    "fields": {
+                        "title": {},
+                    },
+                },
+                "size": 15,
             },
-            "highlight": {
-                "fragment_size": 40,
-                "fields": {
-                    "title": {}
-                }
-            },
-            "size": 15,
-        })
+        )
 
         for hit in response["hits"]["hits"]:
             doc = hit["_source"]
-            doc['id'] = int(hit["_id"])
-            doc['highlight'] = hit.get('highlight',{})
+            doc["id"] = int(hit["_id"])
+            doc["highlight"] = hit.get("highlight", {})
 
-            doc['token'] = doc['title']
-            del doc['title']
+            doc["token"] = doc["title"]
+            del doc["title"]
             ret_list.append(doc)
 
         return ret_list
@@ -221,15 +279,18 @@ class GpcDAO:
     async def get_title_id(self, title):
         """
         从 es 中查找 page id, 没有找到就返回 None"""
-        response = await self.ES.search(index="en_page", body={
-            '_source': ['title', 'id'],
-            'query': {
-                'match_phrase': {
-                    'title': title
-                }
+        response = await self.ES.search(
+            index="en_page",
+            body={
+                "_source": ["title", "id"],
+                "query": {
+                    "match_phrase": {
+                        "title": title,
+                    },
+                },
+                "size": 1,
             },
-            "size": 1,
-        })
+        )
         if response["hits"]["hits"]:
             return response["hits"]["hits"][0]
         return None
@@ -241,7 +302,7 @@ class GpcDAO:
         """
         async with self.pool.acquire() as conn:
             cur = await conn.cursor()
-            await cur.execute(sql, (token, ))
+            await cur.execute(sql, (token,))
             doc = await cur.fetchone()
             if not doc:
                 return []
@@ -249,8 +310,7 @@ class GpcDAO:
         logging.info("page id: %s", page_id)
         return await self.get_last_token_by_page_id(page_id)
 
-
-    @cache(expire=60*60)
+    @cache(expire=60 * 60)
     async def check_last_token_by_page_id(self, page_id):
         """
         检查是否存在该 page_id 的距离"""
@@ -273,7 +333,7 @@ class GpcDAO:
 """
         async with self.pool.acquire() as conn:
             cur = await conn.cursor()
-            await cur.execute(sql,)
+            await cur.execute(sql)
             # print(cur.description)
             doc = await cur.fetchone()
             if doc:
@@ -298,10 +358,12 @@ class GpcDAO:
                 result.append(doc)
         return result
 
-    @cache(expire=60*60)
-    async def get_last_token_by_page_id(self,title, page_id, distanceStart,distanceEnd):
+    @cache(expire=60 * 60)
+    async def get_last_token_by_page_id(
+        self, title, page_id, distanceStart, distanceEnd
+    ):
 
-        logging.info("page id: %s - %s - %s", page_id, distanceStart,distanceEnd)
+        logging.info("page id: %s - %s - %s", page_id, distanceStart, distanceEnd)
         # plan 2
         sql = f"""select b.artA,c.page_title as title_a,b.artB,d.page_title as title_b,b.distance from(select a.* from art_distance0 a
 where a.artA={page_id} or a.artB={page_id}
@@ -339,8 +401,8 @@ limit 1000"""
             for doc in query_results:
                 doc = list(doc)
                 if int(doc[0]) != int(page_id):
-                    doc[0],doc[2] = doc[2],doc[0]
-                    doc[1],doc[3] = title ,doc[1]
+                    doc[0], doc[2] = doc[2], doc[0]
+                    doc[1], doc[3] = title, doc[1]
                 else:
                     doc[1] = title
                 result.append(doc)
@@ -355,11 +417,10 @@ limit 1000"""
         return []
         # 反向查
 
-
-    @cache(expire=60*60)
+    @cache(expire=60 * 60)
     async def get_two_token_by_page_id(self, page_a_id, page_b_id):
 
-        logging.info("page id: %s,%s", page_a_id,page_b_id)
+        logging.info("page id: %s,%s", page_a_id, page_b_id)
 
         # plan 2
         sql = f"""select b.artA,c.page_title as title_a,b.artB,d.page_title as title_b,b.distance from(select a.* from art_distance0 a
@@ -390,15 +451,15 @@ limit 2"""
         result = []
         async with self.pool.acquire() as conn:
             cur = await conn.cursor()
-            await cur.execute(sql,)
+            await cur.execute(sql)
             # print(cur.description)
             query_results = await cur.fetchall()
 
             for doc in query_results:
                 if int(doc[0]) != int(page_a_id):
                     doc = list(doc)
-                    doc[0],doc[2] = doc[2],doc[0]
-                    doc[1],doc[3] = doc[3],doc[1]
+                    doc[0], doc[2] = doc[2], doc[0]
+                    doc[1], doc[3] = doc[3], doc[1]
                     result.append(doc)
                 else:
                     result.append(doc)
@@ -407,14 +468,20 @@ limit 2"""
         # no answer
         return []
 
-    @cache(expire=60*60)
-    async def get_abxy_token_by_page_id_v0(self, page_a_id, page_b_id, page_x_id, floatRange):
+    @cache(expire=60 * 60)
+    async def get_abxy_token_by_page_id_v0(
+        self, page_a_id, page_b_id, page_x_id, floatRange
+    ):
         # await self.test(page_a_id, page_b_id, page_x_id, floatRange)
 
-        logging.info("page id: %s,%s,%s", page_a_id,page_b_id,page_x_id)
+        logging.info("page id: %s,%s,%s", page_a_id, page_b_id, page_x_id)
 
-        d1 = await get_neo4j_relationships_weight(page_a_id, page_b_id, self.neo4j_driver)
-        d2 = await get_neo4j_relationships_weight(page_a_id, page_x_id, self.neo4j_driver)
+        d1 = await get_neo4j_relationships_weight(
+            page_a_id, page_b_id, self.neo4j_driver
+        )
+        d2 = await get_neo4j_relationships_weight(
+            page_a_id, page_x_id, self.neo4j_driver
+        )
 
         # 查询交集
         # 找到集合1
@@ -436,41 +503,49 @@ RETURN b3,r3,r4,a2 LIMIT 1000
 """
         ret = []
         async with self.neo4j_driver.session(database="neo4j") as session:
-            result = await session.run(query,
+            result = await session.run(
+                query,
                 a1_ID=int(page_b_id),
-                r1_weight_min=max(d2-floatRange, 0),
-                r1_weight_max=min(d2+floatRange, 1),
+                r1_weight_min=max(d2 - floatRange, 0),
+                r1_weight_max=min(d2 + floatRange, 1),
                 a2_ID=int(page_x_id),
-                r2_weight_min=max(d1-floatRange, 0),
-                r2_weight_max=min(d1+floatRange, 1),
+                r2_weight_min=max(d1 - floatRange, 0),
+                r2_weight_max=min(d1 + floatRange, 1),
             )
             async for record in result:
-                ret.append({
-                    'title': record.get('b3',{}).get('Title'),
-                    'weight_1': round(record.get('r3',{}).get('weight'),3),
-                    'weight_2': round(record.get('r4',{}).get('weight'),3),
-                })
+                ret.append(
+                    {
+                        "title": record.get("b3", {}).get("Title"),
+                        "weight_1": round(record.get("r3", {}).get("weight"), 3),
+                        "weight_2": round(record.get("r4", {}).get("weight"), 3),
+                    }
+                )
         # if record:
         #     return record.get('r',{}).get('weight',1)
-            # print("weight",d1,d2)
-        logging.info("result count :%s",len(ret))
+        # print("weight",d1,d2)
+        logging.info("result count :%s", len(ret))
         return {
-            "d1":round(d1,3),
-            "d2":round(d2,3),
-            "data": ret
+            "d1": round(d1, 3),
+            "d2": round(d2, 3),
+            "data": ret,
         }
 
-
-    @cache(expire=60*60)
-    async def get_abxy_token_by_page_id_v1(self, page_a_id, page_b_id, page_x_id, floatRange):
+    @cache(expire=60 * 60)
+    async def get_abxy_token_by_page_id_v1(
+        self, page_a_id, page_b_id, page_x_id, floatRange
+    ):
 
         start_time = time.time()
-        logging.info("page id: %s,%s,%s", page_a_id,page_b_id,page_x_id)
+        logging.info("page id: %s,%s,%s", page_a_id, page_b_id, page_x_id)
 
-        d1 = await get_neo4j_relationships_weight(page_a_id, page_b_id, self.neo4j_driver)
-        d2 = await get_neo4j_relationships_weight(page_a_id, page_x_id, self.neo4j_driver)
+        d1 = await get_neo4j_relationships_weight(
+            page_a_id, page_b_id, self.neo4j_driver
+        )
+        d2 = await get_neo4j_relationships_weight(
+            page_a_id, page_x_id, self.neo4j_driver
+        )
 
-        query="""
+        query = """
         MATCH (a1:P)<-[r1:D]->(b1:P)
 WHERE a1.Id = $a1_ID AND r1.weight >= $r1_weight_min AND r1.weight <= $r1_weight_max
 WITH collect(b1) AS b1Set,collect(r1) AS r1Set, a1
@@ -481,13 +556,14 @@ WITH b1Set, collect(b2) AS b2Set,collect(r2) AS r2Set, a1,a2, r1Set
 WITH [n IN b1Set WHERE n IN b2Set] AS b3Set, r1Set, r2Set, a1, a2
 RETURN b3Set,r1Set,r2Set,a1,a2"""
         async with self.neo4j_driver.session(database="neo4j") as session:
-            result = await session.run(query,
+            result = await session.run(
+                query,
                 a1_ID=int(page_b_id),
-                r1_weight_min=max(d2-floatRange, 0),
-                r1_weight_max=min(d2+floatRange, 1),
+                r1_weight_min=max(d2 - floatRange, 0),
+                r1_weight_max=min(d2 + floatRange, 1),
                 a2_ID=int(page_x_id),
-                r2_weight_min=max(d1-floatRange, 0),
-                r2_weight_max=min(d1+floatRange, 1),
+                r2_weight_min=max(d1 - floatRange, 0),
+                r2_weight_max=min(d1 + floatRange, 1),
             )
 
             result_dict = {}
@@ -501,46 +577,53 @@ RETURN b3Set,r1Set,r2Set,a1,a2"""
                 b3_id_set = set()
                 for item in b3Set:
                     b3_id_set.add(item.element_id)
-                    key = item.get('Title')
+                    key = item.get("Title")
                     result_dict[key] = {
-                        'weight_1': 0,
-                        'weight_2': 0,
-                        'title': key
+                        "weight_1": 0,
+                        "weight_2": 0,
+                        "title": key,
                     }
 
                 for item in r1Set:
                     nodes = item.nodes
                     if nodes[0].element_id in b3_id_set:
                         if nodes[1].element_id == a1_id:
-                            result_dict[nodes[0].get('Title')]['weight_1'] = round(item.get('weight'),3)
+                            result_dict[nodes[0].get("Title")]["weight_1"] = round(
+                                item.get("weight"), 3
+                            )
                     if nodes[1].element_id in b3_id_set:
                         if nodes[0].element_id == a1_id:
-                            result_dict[nodes[1].get('Title')]['weight_1'] = round(item.get('weight'),3)
-                            
-                            
+                            result_dict[nodes[1].get("Title")]["weight_1"] = round(
+                                item.get("weight"), 3
+                            )
+
                 for item in r2Set:
                     nodes = item.nodes
                     if nodes[0].element_id in b3_id_set:
                         if nodes[1].element_id == a2_id:
-                            result_dict[nodes[0].get('Title')]['weight_2'] = round(item.get('weight'),3)
+                            result_dict[nodes[0].get("Title")]["weight_2"] = round(
+                                item.get("weight"), 3
+                            )
                     if nodes[1].element_id in b3_id_set:
                         if nodes[0].element_id == a2_id:
-                            result_dict[nodes[1].get('Title')]['weight_2'] = round(item.get('weight'),3)
-                            
-            logging.info(f"Execution time: {time.time()-start_time} seconds")   
+                            result_dict[nodes[1].get("Title")]["weight_2"] = round(
+                                item.get("weight"), 3
+                            )
+
+            logging.info(f"Execution time: {time.time()-start_time} seconds")
             return {
-                "d1":round(d1,3),
-                "d2":round(d2,3),
-                "data": list(result_dict.values())  
+                "d1": round(d1, 3),
+                "d2": round(d2, 3),
+                "data": list(result_dict.values()),
             }
-                # logging.info('result_dict: %s',result_dict)
+            # logging.info('result_dict: %s',result_dict)
             # logging.info("a1: %s",a1)
             # logging.info("b3Set: %s",len(b3Set))
             #     # break
-                # ret.ap*/-------
+            # ret.ap*/-------
         # if record:
         #     return record.get('r',{}).get('weight',1)
-            # print("weight",d1,d2)
+        # print("weight",d1,d2)
         # logging.info("result count :%s",len(ret))
         # return {
         #     "d1":round(d1,3),
@@ -548,18 +631,21 @@ RETURN b3Set,r1Set,r2Set,a1,a2"""
         #     "data": ret
         # }
 
-
-
-
-    @cache(expire=60*60)
-    async def get_abxy_token_by_page_id_v2(self, page_a_id, page_b_id, page_x_id, floatRange):
+    @cache(expire=60 * 60)
+    async def get_abxy_token_by_page_id_v2(
+        self, page_a_id, page_b_id, page_x_id, floatRange
+    ):
         start_time = time.time()
-        logging.info("page id: %s,%s,%s", page_a_id,page_b_id,page_x_id)
+        logging.info("page id: %s,%s,%s", page_a_id, page_b_id, page_x_id)
 
-        d1 = await get_neo4j_relationships_weight(page_a_id, page_b_id, self.neo4j_driver)
-        d2 = await get_neo4j_relationships_weight(page_a_id, page_x_id, self.neo4j_driver)
+        d1 = await get_neo4j_relationships_weight(
+            page_a_id, page_b_id, self.neo4j_driver
+        )
+        d2 = await get_neo4j_relationships_weight(
+            page_a_id, page_x_id, self.neo4j_driver
+        )
 
-        query="""MATCH (a1:P)<-[r1:D]->(b1:P)
+        query = """MATCH (a1:P)<-[r1:D]->(b1:P)
 WHERE a1.Id = $a1_ID AND r1.weight >= $r1_weight_min AND r1.weight <= $r1_weight_max
 WITH collect(b1) AS b1Set,collect(r1) AS r1Set, a1
 
@@ -570,7 +656,7 @@ WITH [n IN b1Set WHERE n IN b2Set] AS b3Set, r1Set, r2Set, a1, a2
 
 UNWIND r1Set as r
 WITH r2Set,b3Set,
-CASE 
+CASE
   WHEN endNode(r) IN b3Set THEN {weight: r.weight,Title: endNode(r).Title}
   WHEN startNode(r) IN b3Set THEN {weight: r.weight,Title: startNode(r).Title}
 END AS result1
@@ -588,47 +674,48 @@ WITH collect(result2) as distance_2,distance_1
 RETURN distance_2,distance_1
 """
         async with self.neo4j_driver.session(database="neo4j") as session:
-            result = await session.run(query,
+            result = await session.run(
+                query,
                 a1_ID=int(page_b_id),
-                r1_weight_min=max(d2-floatRange, 0),
-                r1_weight_max=min(d2+floatRange, 1),
+                r1_weight_min=max(d2 - floatRange, 0),
+                r1_weight_max=min(d2 + floatRange, 1),
                 a2_ID=int(page_x_id),
-                r2_weight_min=max(d1-floatRange, 0),
-                r2_weight_max=min(d1+floatRange, 1),
+                r2_weight_min=max(d1 - floatRange, 0),
+                r2_weight_max=min(d1 + floatRange, 1),
             )
 
             result_dict = {}
             async for record in result:
                 distance_2 = record.get("distance_2")
                 distance_1 = record.get("distance_1")
-                
+
                 for item in distance_1:
-                    key = item.get('Title')
+                    key = item.get("Title")
                     result_dict[key] = {
-                        'weight_1': round(item.get('weight'),3),
-                        'weight_2': 0,
-                        'title': key
+                        "weight_1": round(item.get("weight"), 3),
+                        "weight_2": 0,
+                        "title": key,
                     }
-                    
+
                 for item in distance_2:
-                    key = item.get('Title')
+                    key = item.get("Title")
                     if key in result_dict:
-                        result_dict[key]['weight_2'] = round(item.get('weight'),3)
-                
-            logging.info(f"Execution time: {time.time()-start_time} seconds")         
+                        result_dict[key]["weight_2"] = round(item.get("weight"), 3)
+
+            logging.info(f"Execution time: {time.time()-start_time} seconds")
             return {
-                "d1":round(d1,3),
-                "d2":round(d2,3),
-                "data": list(result_dict.values())  
+                "d1": round(d1, 3),
+                "d2": round(d2, 3),
+                "data": list(result_dict.values()),
             }
-                # logging.info('result_dict: %s',result_dict)
+            # logging.info('result_dict: %s',result_dict)
             # logging.info("a1: %s",a1)
             # logging.info("b3Set: %s",len(b3Set))
             #     # break
-                # ret.ap*/-------
+            # ret.ap*/-------
         # if record:
         #     return record.get('r',{}).get('weight',1)
-            # print("weight",d1,d2)
+        # print("weight",d1,d2)
         # logging.info("result count :%s",len(ret))
         # return {
         #     "d1":round(d1,3),
@@ -1036,7 +1123,6 @@ RETURN distance_2,distance_1
     #             if cat in result_map:
     #                 l0_cat_dict[par_cat] += result_map[cat]
 
-
     #     result_list = [(key,value) for key,value in l0_cat_dict.items()]
     #     result_list.sort(key=lambda x:-x[1][-1])
 
@@ -1292,7 +1378,6 @@ RETURN distance_2,distance_1
     #                     continue
     #                 result_map[ipc_prefix] += json.loads(data)[data_index]
 
-
     #         result_dict = {}
     #         for l0_name, total in result_map.items():
     #             result_dict.setdefault(l0_name, {
@@ -1300,7 +1385,6 @@ RETURN distance_2,distance_1
     #                 'value':total,
     #             })
     #         return list(result_dict.values())
-
 
     #     # 查询附加方向
     #     else:
@@ -1335,7 +1419,6 @@ RETURN distance_2,distance_1
     #                 'value':total,
     #             })
     #         return list(result_dict.values())
-
 
     # async def country_ipc_trend(self, mode: str,flow: str, countries: list[str],):
     #     # 1990-2022 年的数据趋势
@@ -1455,7 +1538,6 @@ RETURN distance_2,distance_1
 
     #     return {'legend': legend, 'data': data}
 
-
     # async def subject_ingredient(self, mode: str,flow: str, subjects: list[str], years: list[int]):
     #     """提供 subject， 按照引用数，依赖，被依赖，计算一个分布"""
     #     if mode == "national_academic_disciplines":
@@ -1463,7 +1545,6 @@ RETURN distance_2,distance_1
     #     if mode == "national_between_countries":
     #         # todo
     #         return await self.paper_subject_ingredient_national_between_countries(flow,subjects,years)
-
 
     # @cache(expire=60*60)
     # async def paper_subject_ingredient_national_academic_disciplines(self, flow: str, subjects: list[str], years: list[int]):
@@ -1507,7 +1588,6 @@ RETURN distance_2,distance_1
     #         })
     #     return result[:20]
 
-
     # @cache(expire=60*60)
     # async def paper_subject_ingredient_national_between_countries(self, flow: str, subjects: list[str], years: list[int]):
     #     """tree map, 从国家找国家,  """
@@ -1542,7 +1622,6 @@ RETURN distance_2,distance_1
     #     return [{
     #         'name': name, 'value': value
     #     }  for name,value in result_map.items()]
-
 
     # async def subject_academic_trend(self, mode: str,flow: str, subjects: list[str],):
     #     # 1990-2022 年的数据趋势

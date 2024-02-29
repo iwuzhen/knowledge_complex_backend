@@ -1,23 +1,30 @@
-from fastapi import APIRouter
-import logging
-from knowledge_complex_backend.db.dao.gpc_dao import GpcDAO
-from fastapi.param_functions import Depends
 import json
+import logging
+
+from fastapi import APIRouter
+from fastapi.param_functions import Depends
+
+from knowledge_complex_backend.db.dao.gpc_dao import GpcDAO
+
 # from knowledge_complex_backend.web.api.gpc.schema import \
 
 router = APIRouter()
 
+
 @router.get("/test")
 async def test(
-    gpc_dao: GpcDAO = Depends(),):
+    gpc_dao: GpcDAO = Depends(),
+):
     logging.info("gpc test info")
     return json.dumps(await gpc_dao.test())
+
 
 @router.get("/suggestion")
 async def suggestion(
     query: str = "",
-    gpc_dao: GpcDAO = Depends(),):
-    '''搜索建议'''
+    gpc_dao: GpcDAO = Depends(),
+):
+    """搜索建议"""
 
     return await gpc_dao.query_suggestion(query)
 
@@ -25,21 +32,27 @@ async def suggestion(
 @router.get("/last_token")
 async def last_token(
     token: str = "",
-    tokenID: int= 0,
+    tokenID: int = 0,
     distanceStart: float = 0,
     distanceEnd: float = 1,
-    gpc_dao: GpcDAO = Depends(),):
-    '''搜索最近的 token'''
+    gpc_dao: GpcDAO = Depends(),
+):
+    """搜索最近的 token"""
 
-    return await gpc_dao.get_last_token_by_page_id(token, tokenID, distanceStart,distanceEnd)
+    return await gpc_dao.get_last_token_by_page_id(
+        token, tokenID, distanceStart, distanceEnd
+    )
+
 
 @router.get("/two_token")
 async def two_token(
     token_a: str = "",
     token_b: str = "",
-    gpc_dao: GpcDAO = Depends(),):
+    gpc_dao: GpcDAO = Depends(),
+):
 
-    return await gpc_dao.get_two_token_by_page_id(token_a,token_b)
+    return await gpc_dao.get_two_token_by_page_id(token_a, token_b)
+
 
 @router.get("/abxy_token")
 async def abxy_token(
@@ -47,9 +60,12 @@ async def abxy_token(
     token_b: str = "",
     token_x: str = "",
     floatRange: float = 0.1,
-    gpc_dao: GpcDAO = Depends(),):
+    gpc_dao: GpcDAO = Depends(),
+):
 
-    return await gpc_dao.get_abxy_token_by_page_id_v2(token_a,token_b,token_x, floatRange)
+    return await gpc_dao.get_abxy_token_by_page_id_v2(
+        token_a, token_b, token_x, floatRange
+    )
 
 
 # @router.get("/number_of_papers_per_year_by_country_dx")

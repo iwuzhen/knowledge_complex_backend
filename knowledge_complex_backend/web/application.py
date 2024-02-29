@@ -1,8 +1,8 @@
 from importlib import metadata
 
 from fastapi import FastAPI
-from fastapi.responses import UJSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import UJSONResponse
 
 from knowledge_complex_backend.logging import configure_logging
 from knowledge_complex_backend.web.api.router import api_router

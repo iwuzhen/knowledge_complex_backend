@@ -1,6 +1,6 @@
 from fastapi.routing import APIRouter
 
-from knowledge_complex_backend.web.api import echo, monitoring, redis, complexity, gpc
+from knowledge_complex_backend.web.api import complexity, echo, gpc, monitoring, redis
 
 api_router = APIRouter()
 api_router.include_router(monitoring.router)

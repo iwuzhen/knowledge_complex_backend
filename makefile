@@ -11,4 +11,3 @@ dev:init
 
 install:init
 	poetry install
-

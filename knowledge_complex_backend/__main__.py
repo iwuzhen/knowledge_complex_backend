@@ -15,6 +15,7 @@ def main() -> None:
         factory=True,
     )
 
+
 # find max a
 if __name__ == "__main__":
     main()

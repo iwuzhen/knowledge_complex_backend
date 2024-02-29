@@ -1,7 +1,5 @@
-from typing import AsyncGenerator
 
 from starlette.requests import Request
-
 
 
 async def get_db_pool(
@@ -20,6 +18,7 @@ async def get_db_pool(
     # finally:
     #     await session.commit()
     #     await session.close()
+
 
 async def get_gpc_db_pool(
     request: Request,
@@ -45,7 +44,6 @@ async def get_wikipedia_es_client(
     return request.app.state.wikipedia_elastic_client
 
 
-
 async def get_neo4j_driver(
     request: Request,
 ) -> any:
@@ -56,4 +54,3 @@ async def get_neo4j_driver(
     :yield: database session.
     """
     return request.app.state.neo4j_driver
-
