@@ -230,13 +230,13 @@ class GpcDAO:
                             },
                             {
                                 "match": {
-                                    "redirect.standard": {"query": query, "boost": 50}
+                                    "redirect.standard": {"query": query, "boost": 5}
                                 }
                             },
                             {"match": {"title.prefix": {"query": query, "boost": 20}}},
                             {
                                 "match": {
-                                    "redirect.prefix": {"query": query, "boost": 19}
+                                    "redirect.prefix": {"query": query, "boost": 4}
                                 }
                             },
                             {
@@ -637,7 +637,7 @@ RETURN b3Set,r1Set,r2Set,a1,a2"""
     ):
         start_time = time.time()
         logging.info("page id: %s,%s,%s", page_a_id, page_b_id, page_x_id)
-
+        except_id_set = set([ page_a_id, page_b_id, page_x_id])
         d1 = await get_neo4j_relationships_weight(
             page_a_id, page_b_id, self.neo4j_driver
         )
@@ -690,6 +690,10 @@ RETURN distance_2,distance_1
                 distance_1 = record.get("distance_1")
 
                 for item in distance_1:
+
+                    if item.get("Id") in except_id_set:
+                        continue
+
                     key = item.get("Title")
                     result_dict[key] = {
                         "weight_1": round(item.get("weight"), 3),
@@ -698,6 +702,10 @@ RETURN distance_2,distance_1
                     }
 
                 for item in distance_2:
+
+                    if item.get("Id") in except_id_set:
+                        continue
+
                     key = item.get("Title")
                     if key in result_dict:
                         result_dict[key]["weight_2"] = round(item.get("weight"), 3)
