@@ -23,7 +23,7 @@ class InfoDAO:
     async def get_all_info_store(self, key):
         ret = []
         async for doc in self.mongodb_database["info_store"].find(
-            {"key": key}, {"_id": 0, "key": 0}
+            {"key": key}, {"_id": 0, "key": 0},
         ):
             ret.append(doc)
         return ret
