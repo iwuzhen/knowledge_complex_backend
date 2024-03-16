@@ -5,6 +5,7 @@ import aiomysql
 import neo4j
 from elasticsearch import AsyncElasticsearch
 from fastapi import FastAPI
+from motor.motor_asyncio import AsyncIOMotorClient
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
@@ -106,18 +107,21 @@ async def _setup_db(app: FastAPI) -> None:  # pragma: no cover
     )
 
     # todo set in emv
-    app.state.gpc_mysql_pool = await aiomysql.create_pool(
-        host="192.168.1.229",
-        port=3329,
-        user="root",
-        password="root",
-        db="gpc",
-    )
+    # app.state.gpc_mysql_pool = await aiomysql.create_pool(
+    #     host="192.168.1.229",
+    #     port=3329,
+    #     user="root",
+    #     password="root",
+    #     db="gpc",
+    # )
 
     app.state.wikipedia_elastic_client = AsyncElasticsearch("http://192.168.1.227:9200")
     app.state.neo4j_driver = neo4j.AsyncGraphDatabase.driver(
-        "bolt://192.168.1.229:17688", auth=("neo4j", "neo4j-test")
+        "bolt://192.168.1.229:17689",
+        auth=("neo4j", "neo4j-test"),
     )
+    client = AsyncIOMotorClient("mongodb://knogen:knogen@192.168.1.227:27017")
+    app.state.mongo_database = client.get_database("knogen_complex_backend")
 
 
 def register_startup_event(
@@ -161,8 +165,8 @@ def register_shutdown_event(
         app.state.mysql_pool.close()
         await app.state.mysql_pool.wait_closed()
 
-        app.state.gpc_mysql_pool.close()
-        await app.state.gpc_mysql_pool.wait_closed()
+        # app.state.gpc_mysql_pool.close()
+        # await app.state.gpc_mysql_pool.wait_closed()
 
         await app.state.wikipedia_elastic_client.close()
         await app.state.neo4j_driver.close()

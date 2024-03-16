@@ -1,4 +1,3 @@
-
 from starlette.requests import Request
 
 
@@ -20,16 +19,16 @@ async def get_db_pool(
     #     await session.close()
 
 
-async def get_gpc_db_pool(
-    request: Request,
-) -> any:
-    """
-    Create and get database session.
+# async def get_gpc_db_pool(
+#     request: Request,
+# ) -> any:
+#     """
+#     Create and get database session.
 
-    :param request: current request.
-    :yield: database session.
-    """
-    return request.app.state.gpc_mysql_pool
+#     :param request: current request.
+#     :yield: database session.
+#     """
+#     return request.app.state.gpc_mysql_pool
 
 
 async def get_wikipedia_es_client(
@@ -54,3 +53,7 @@ async def get_neo4j_driver(
     :yield: database session.
     """
     return request.app.state.neo4j_driver
+
+
+async def get_mongodb_database(request: Request) -> any:
+    return request.app.state.mongo_database
