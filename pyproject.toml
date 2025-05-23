@@ -1,54 +1,60 @@
-[tool.poetry]
+[project]
 name = "knowledge_complex_backend"
 version = "0.1.0"
 description = ""
-authors = [
-
-]
-maintainers = [
-
-]
+authors = []
+requires-python = "~=3.11"
 readme = "README.md"
+maintainers = []
+dependencies = [
+    "fastapi>=0.89.1,<0.90",
+    "uvicorn[standard]>=0.20.0,<0.21",
+    "pydantic[dotenv]>=1.10.4,<2",
+    "yarl>=1.8.2,<2",
+    "ujson>=5.7.0,<6",
+    "redis[hiredis]>=4.4.2,<5",
+    "httptools==0.6.4",
+    "opentelemetry-api>=1.15.0,<2",
+    "opentelemetry-sdk>=1.15.0,<2",
+    "opentelemetry-exporter-otlp>=1.15.0,<2",
+    "opentelemetry-instrumentation>=0.36b0,<0.37",
+    "opentelemetry-instrumentation-fastapi>=0.36b0,<0.37",
+    "opentelemetry-instrumentation-redis>=0.36b0,<0.37",
+    "loguru>=0.6.0,<0.7",
+    "aiomysql>=0.1.1,<0.2",
+    "numpy>=1.24.3,<2",
+    "fastapi-cache2[redis]>=0.2.1,<0.3",
+    "async-lru>=2.0.2,<3",
+    "orjson>=3.9.0,<4",
+    "elasticsearch>=8.9.0,<9",
+    "neo4j>=5.17.0,<6",
+    "motor>=3.3.2,<4",
+    "elastic-transport>=8.17.1",
+    "aiohttp>=3.11.18",
+]
 
-[tool.poetry.dependencies]
-python = "^3.11"
-fastapi = "^0.89.1"
-uvicorn = { version = "^0.20.0", extras = ["standard"] }
-pydantic = {version = "^1.10.4", extras = ["dotenv"]}
-yarl = "^1.8.2"
-ujson = "^5.7.0"
-redis = {version = "^4.4.2", extras = ["hiredis"]}
-httptools = "^0.5.0"
-opentelemetry-api = "^1.15.0"
-opentelemetry-sdk = "^1.15.0"
-opentelemetry-exporter-otlp = "^1.15.0"
-opentelemetry-instrumentation = "^0.36b0"
-opentelemetry-instrumentation-fastapi = "^0.36b0"
-opentelemetry-instrumentation-redis = "^0.36b0"
-loguru = "^0.6.0"
-aiomysql = "^0.1.1"
-numpy = "^1.24.3"
-fastapi-cache2 = {extras = ["redis"], version = "^0.2.1"}
-async-lru = "^2.0.2"
-orjson = "^3.9.0"
-elasticsearch = "^8.9.0"
-neo4j = "^5.17.0"
-motor = "^3.3.2"
+[dependency-groups]
+dev = [
+    "pytest>=7.2.1,<8",
+    "flake8~=4.0.1",
+    "mypy>=1.1.1,<2",
+    "isort>=5.11.4,<6",
+    "pre-commit>=3.0.1,<4",
+    "wemake-python-styleguide>=0.17.0,<0.18",
+    "black>=22.12.0,<23",
+    "autoflake>=1.6.1,<2",
+    "pytest-cov>=4.0.0,<5",
+    "anyio>=3.6.2,<4",
+    "pytest-env>=0.8.1,<0.9",
+    "fakeredis>=2.5.0,<3",
+    "httpx>=0.23.3,<0.24",
+]
 
-[tool.poetry.dev-dependencies]
-pytest = "^7.2.1"
-flake8 = "~4.0.1"
-mypy = "^1.1.1"
-isort = "^5.11.4"
-pre-commit = "^3.0.1"
-wemake-python-styleguide = "^0.17.0"
-black = "^22.12.0"
-autoflake = "^1.6.1"
-pytest-cov = "^4.0.0"
-anyio = "^3.6.2"
-pytest-env = "^0.8.1"
-fakeredis = "^2.5.0"
-httpx = "^0.23.3"
+[tool.uv]
+
+[[tool.uv.index]]
+name = "aliyun"
+url = "https://mirrors.aliyun.com/pypi/simple"
 
 [tool.isort]
 profile = "black"
@@ -68,8 +74,6 @@ warn_unused_ignores = false
 warn_return_any = false
 namespace_packages = true
 
-# Remove this and add `types-redis`
-# when the issue https://github.com/python/typeshed/issues/8242 is resolved.
 [[tool.mypy.overrides]]
 module = [
     'redis.asyncio'
@@ -109,11 +113,5 @@ sentry_enabled = "None"
 otlp_enabled = "True"
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
-
-
-[[tool.poetry.source]]
-name = "aliyun"
-url = "http://mirrors.aliyun.com/pypi/simple"
-default = true
+requires = ["hatchling"]
+build-backend = "hatchling.build"

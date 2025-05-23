@@ -40,9 +40,11 @@ def get_app() -> FastAPI:
     # develop cors fix
     origins = [
         "http://localhost",
+        "http://localhost:4000",
         "http://192.168.1.230:3333",
         "http://192.168.1.230:3334",
         "https://kg.dev.knogen.com:10444",
+        "https://kg.dev.knogen.com",
     ]
     app.add_middleware(
         CORSMiddleware,
